@@ -1,0 +1,13 @@
+# Default gitleaks rules, plus one narrow exception: a value that is exactly an Ethereum address
+# (0x + 40 hex) is a public identifier, not a secret. Variables like `const TOKEN = "0x…"` (the local
+# test token's contract address) otherwise trip the generic-api-key rule. Private keys (64 hex) are
+# still reported.
+title = "TokenFlow gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Ethereum addresses are public"
+regexTarget = "secret"
+regexes = ['''^0x[0-9a-fA-F]{40}$''']
