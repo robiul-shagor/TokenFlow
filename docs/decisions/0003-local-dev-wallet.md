@@ -26,4 +26,5 @@ appears in `package.json` or anywhere else in the repository.
 
 - The dev-account connector only works against a node with unlocked accounts, which means Anvil.
   Against any other RPC it fails, which is the desired fail-closed behaviour.
-- The UI shows a permanent "LOCAL DEVELOPMENT ONLY" banner and refuses writes on any other chain.
+- The UI shows a permanent "LOCAL DEVELOPMENT ONLY" banner and refuses writes on any other chain. On testnet
+  profiles the dev accounts are not offered at all ([ADR 0006](0006-network-profiles.md)).

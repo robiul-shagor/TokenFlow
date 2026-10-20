@@ -17,6 +17,8 @@ export interface IndexerDeps extends IndexerTarget {
   client: Pick<PublicClient, "getBlockNumber" | "getBlock" | "getContractEvents">;
   /** Max blocks per getLogs request / DB transaction. */
   batchSize?: bigint;
+  /** Only index blocks at least this deep (latest - confirmations), so short reorgs never reach the DB. */
+  confirmations?: bigint;
 }
 
 export interface IndexBatchResult {
@@ -59,14 +61,17 @@ export async function indexBatch(deps: IndexerDeps): Promise<IndexBatchResult> {
   const k = key(deps);
   const batchSize = deps.batchSize ?? 2_000n;
   // cacheTime 0: viem otherwise caches the block number, which would make catch-up stop early.
-  const headBlock = await client.getBlockNumber({ cacheTime: 0 });
+  const latest = await client.getBlockNumber({ cacheTime: 0 });
+  const depth = deps.confirmations ?? 0n;
+  const headBlock = latest > depth ? latest - depth : 0n;
   const cursor = await getCursor(db, deps);
 
   if (cursor) {
     if (cursor.lastProcessedBlock > headBlock) {
       throw new ChainMismatchError(
         `Cursor is at block ${cursor.lastProcessedBlock} but the chain head is ${headBlock}. ` +
-          `The local chain was probably restarted; run the indexer with --reset.`,
+          `The chain was probably restarted (local Anvil) or reorganised deeper than the confirmation depth; ` +
+          `run the indexer with --reset.`,
       );
     }
     const block = await client.getBlock({ blockNumber: cursor.lastProcessedBlock });

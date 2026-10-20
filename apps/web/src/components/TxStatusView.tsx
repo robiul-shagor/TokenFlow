@@ -9,12 +9,12 @@ export function TxStatusView({ state }: { state: TxState }) {
   const label = state.label ?? "Transaction";
   const hash = state.hash && (
     <span className="ml-1">
-      Tx <Hex value={state.hash} />
+      Tx <Hex value={state.hash} kind="tx" />
     </span>
   );
   switch (state.status) {
     case "preparing":
-      return <Notice tone="info" title={`${label}: preparing`}>Simulating the call against the local chain…</Notice>;
+      return <Notice tone="info" title={`${label}: preparing`}>Simulating the call against the chain…</Notice>;
     case "awaiting_signature":
       return <Notice tone="info" title={`${label}: awaiting confirmation`}>Confirm the transaction in your wallet.</Notice>;
     case "pending":

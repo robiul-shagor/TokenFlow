@@ -1,11 +1,13 @@
 import { connection } from "next/server";
 import { MAX_CSV_BYTES, parseAllocationCsv } from "@/lib/csv";
 import { getTokenDecimals, loadDeployment } from "@/server/config";
-import { handleRouteError, jsonError, readLimitedText } from "@/server/http";
+import { handleRouteError, jsonError, limitPublicRequest, readLimitedText } from "@/server/http";
 
 /** Validate CSV content (text/csv body) and return row errors without saving anything. */
 export async function POST(req: Request) {
   await connection();
+  const limited = limitPublicRequest(req, "validate", 30);
+  if (limited) return limited;
   const text = await readLimitedText(req, MAX_CSV_BYTES);
   if (text === null) return jsonError(413, `CSV must be at most ${MAX_CSV_BYTES} bytes`);
   try {

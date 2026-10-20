@@ -16,6 +16,8 @@ import {
 import { erc20Abi, vestingRegistryAbi } from "@/lib/abi";
 import { encodeAllocationId } from "@/lib/allocationId";
 import { reportToCsv } from "@/lib/reconcile";
+import { buildReportAuthMessage, sha256Hex } from "@/lib/reportAuth";
+import { resetUsedReportSignatures, verifyReportAuth } from "@/server/reportAuth";
 import { loadReport, runAndSaveReconciliation } from "@/server/reports";
 import type { Deployment } from "@/server/config";
 import { ALICE, BOB, ISSUER, clients, deployContracts, integrationAvailable, openTestDb, startAnvil } from "./harness";
@@ -243,6 +245,35 @@ describe.skipIf(!integrationAvailable)("issuer → vesting → claim → index �
         .where(and(eq(allocations.contractAddress, registry.toLowerCase())))
     ).map((r) => r.id);
     expect(ids).toEqual(expect.arrayContaining(["batch-001", "batch-002"]));
+  });
+
+  it("only indexes blocks that are at least `confirmations` deep", async () => {
+    await resetIndex(db, deps);
+    await testClient.mine({ blocks: 5 });
+    const head = await publicClient.getBlockNumber({ cacheTime: 0 });
+    await indexToHead({ ...deps, confirmations: 3n });
+    expect((await getCursor(db, deps))!.lastProcessedBlock).toBe(head - 3n);
+    await indexToHead(deps);
+    expect((await getCursor(db, deps))!.lastProcessedBlock).toBe(head);
+  });
+
+  it("accepts a signed report request only from a SCHEDULE_MANAGER_ROLE holder (checked on-chain)", async () => {
+    resetUsedReportSignatures();
+    const deployment: Deployment = { chainId: 31337, registry, token, admin: ISSUER, deployBlock };
+    const csv = `${HEADER}\nteam-1,${ALICE},${token},1,${START},0,1000\n`;
+    const sign = async (who: Address) => {
+      const issuedAt = new Date().toISOString();
+      const message = buildReportAuthMessage({ chainId: 31337, registry, csvSha256: await sha256Hex(csv), issuedAt });
+      return { address: who, issuedAt, signature: await wallet(who).signMessage({ account: who, message }) };
+    };
+    expect(await verifyReportAuth({ auth: await sign(ISSUER), csv, deployment, client: publicClient })).toEqual({
+      ok: true,
+      address: ISSUER,
+    });
+    expect(await verifyReportAuth({ auth: await sign(ALICE), csv, deployment, client: publicClient })).toMatchObject({
+      ok: false,
+      status: 403,
+    });
   });
 
   it("refuses to continue when the chain no longer matches the cursor, until reset", async () => {

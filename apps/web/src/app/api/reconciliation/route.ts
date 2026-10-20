@@ -2,8 +2,9 @@ import { connection, type NextRequest } from "next/server";
 import { isAddress } from "viem";
 import { getDb } from "@/db/client";
 import { MAX_CSV_BYTES } from "@/lib/csv";
-import { getPublicClient, getTokenDecimals, loadDeployment } from "@/server/config";
-import { handleRouteError, jsonError, readLimitedText } from "@/server/http";
+import { getPublicClient, getSafeHeadBlock, getTokenDecimals, loadDeployment, reportSignatureRequired } from "@/server/config";
+import { handleRouteError, jsonError, limitPublicRequest, readLimitedText } from "@/server/http";
+import { verifyReportAuth } from "@/server/reportAuth";
 import { listReports, runAndSaveReconciliation, serializeReport } from "@/server/reports";
 
 interface Body {
@@ -11,11 +12,15 @@ interface Body {
   filename?: unknown;
   chainId?: unknown;
   contractAddress?: unknown;
+  /** Required on public networks: { address, signature, issuedAt } from a SCHEDULE_MANAGER_ROLE holder. */
+  auth?: unknown;
 }
 
-/** Run a reconciliation for the configured local deployment and save the report. */
+/** Run a reconciliation for the configured deployment and save the report. */
 export async function POST(req: Request) {
   await connection();
+  const limited = limitPublicRequest(req, "reconcile", 10);
+  if (limited) return limited;
   const raw = await readLimitedText(req, MAX_CSV_BYTES + 10_000);
   if (raw === null) return jsonError(413, `CSV must be at most ${MAX_CSV_BYTES} bytes`);
   let body: Body;
@@ -38,10 +43,12 @@ export async function POST(req: Request) {
     ) {
       return jsonError(400, `contractAddress must be the configured registry ${d.registry}`);
     }
+    if (reportSignatureRequired()) {
+      const auth = await verifyReportAuth({ auth: body.auth, csv: body.csv, deployment: d, client: getPublicClient() });
+      if (!auth.ok) return jsonError(auth.status, auth.error);
+    }
     const tokenDecimals = await getTokenDecimals(d.token);
-    const headBlock = await getPublicClient()
-      .getBlockNumber()
-      .catch(() => null);
+    const headBlock = await getSafeHeadBlock().catch(() => null);
     const result = await runAndSaveReconciliation({
       db: getDb(),
       deployment: d,

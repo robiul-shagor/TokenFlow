@@ -7,7 +7,7 @@ node_modules/
 !.env.example
 
 # local-only deployment artifacts and chain broadcasts
-contracts/deployments/*.json
+contracts/deployments/31337.json
 contracts/broadcast/
 contracts/cache/
 contracts/out/

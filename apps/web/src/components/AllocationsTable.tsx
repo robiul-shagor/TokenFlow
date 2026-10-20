@@ -102,7 +102,7 @@ export function AllocationsTable({
               <tr key={a.allocationIdHex}>
                 <td className="py-2 pr-3 font-medium">{a.allocationId}</td>
                 <td className="py-2 pr-3">
-                  <Hex value={a.beneficiary} chars={4} />
+                  <Hex value={a.beneficiary} chars={4} kind="address" />
                 </td>
                 <td className="py-2 pr-3 text-right tabular-nums">
                   {formatTokenAmount(a.totalAmount, decimals)} {symbol}
@@ -113,7 +113,7 @@ export function AllocationsTable({
                 </td>
                 <td className="py-2 pr-3">{state && <Badge tone={STATE_TONE[state]}>{SCHEDULE_STATE_LABELS[state]}</Badge>}</td>
                 <td className="py-2 pr-3">
-                  <Hex value={a.createdTxHash} chars={4} />
+                  <Hex value={a.createdTxHash} chars={4} kind="tx" />
                 </td>
                 {renderAction && <td className="py-2 text-right">{renderAction(a, claimable)}</td>}
               </tr>

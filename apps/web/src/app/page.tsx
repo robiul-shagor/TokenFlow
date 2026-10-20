@@ -90,7 +90,7 @@ export default function OverviewPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
           <p className="mt-1 flex flex-wrap items-center gap-1 text-sm text-slate-600 dark:text-slate-400">
-            Vesting registry <Hex value={meta.registry} chars={4} /> · token {symbol || "—"} · chain {meta.chainId}
+            Vesting registry <Hex value={meta.registry} chars={4} kind="address" /> · token {symbol || "—"} · chain {meta.chainId}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

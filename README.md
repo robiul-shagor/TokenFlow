@@ -4,9 +4,9 @@ A developer-first **token allocation operations dashboard**: create and fund ves
 claim, index contract events into Postgres, and **reconcile a CSV of expected allocations against on-chain state**,
 with every report pinned to a specific indexed block.
 
-> ⚠️ **LOCAL DEVELOPMENT ONLY.** This is a portfolio prototype that runs on a local Anvil chain (ID `31337`) with a test
-> token that has **no monetary value**. It is **not audited** and not production software. Never import a real seed
-> phrase or private key, and never point it at mainnet.
+> ⚠️ **Local and testnets only.** This portfolio prototype runs on a local Anvil chain (`31337`) by default, or on
+> Sepolia / Base Sepolia with one setting (see [Networks](#networks)). Its test token has **no monetary value**, it is
+> **not audited**, and mainnets are refused by design. Never import a real seed phrase or private key.
 
 ![Overview: key figures, 12-month unlock chart, indexer health and last reconciliation](docs/images/overview.png)
 
@@ -27,16 +27,31 @@ Screenshots come from a local Anvil chain with the seed data plus a few allocati
 
 - **Vesting contract** (`contracts/src/VestingRegistry.sol`). Linear vesting with a cliff, funded atomically at
   creation, role-gated creation, beneficiary-only claims. Built with Foundry and OpenZeppelin 5.7.
-- **Wallet flows on the local chain.** Use the Anvil dev accounts (no keys in the browser) or a browser wallet. You
-  see every transaction state (preparing, awaiting signature, pending, confirmed, failed, rejected), plus
-  wrong-network and disconnected states.
-- **Dashboard and recipient view.** Allocation totals, live claimable amounts read from the contract, and indexed
-  activity.
+- **Local or testnet, one setting.** `NETWORK=local | sepolia | base-sepolia` switches the chain, wallets, explorer
+  links and safety rails; mainnets are refused ([Networks](#networks)).
+- **Wallet flows.** Anvil dev accounts locally (no keys in the browser) or any browser wallet. You see every
+  transaction state (preparing, awaiting signature, pending, confirmed, failed, rejected), plus wrong-network and
+  disconnected states.
+- **Overview, create and recipient views.** Key figures tagged by source (live contract vs. index), a 12-month
+  unlock projection, a create form with a schedule preview and transaction stepper, and per-schedule claim progress.
 - **Idempotent indexer.** Events are keyed by `(chain_id, tx_hash, log_index)`, each batch is one transaction, and the
-  indexer can be replayed or restarted safely. It detects chain resets.
+  indexer can be replayed or restarted safely. It detects chain resets and, on testnets, waits for a confirmation
+  depth before indexing.
 - **Reconciliation.** CSV validation, exact integer amounts, and statuses for matched, amount / beneficiary /
   schedule mismatch, missing on-chain, on-chain-only, duplicate, invalid, and "can't verify yet (indexer behind)".
-  Reports can be exported as CSV.
+  Reports can be exported as CSV. On public networks, saving a report needs a schedule manager's wallet signature.
+
+## Networks
+
+The same build runs against one network profile, chosen with `NETWORK` in `apps/web/.env.local`:
+
+| `NETWORK` | Chain | Wallets | Safety rails |
+|---|---|---|---|
+| `local` (default) | Anvil `31337` | Anvil dev accounts or a browser wallet | Everything runs on your machine |
+| `sepolia` / `base-sepolia` | Sepolia `11155111` / Base Sepolia `84532` | Visitor's browser wallet | 3-block confirmation depth, signed report saves (schedule managers only), per-IP rate limits, explorer links, security headers |
+
+Mainnets have no profile and are blocked in both the app and the deploy script. To deploy to a testnet (encrypted
+keystore, Etherscan verification, configuration), follow [docs/deployment.md](docs/deployment.md).
 
 ## Prerequisites
 
@@ -51,7 +66,7 @@ Screenshots come from a local Anvil chain with the seed data plus a few allocati
 ## Quick start
 
 ```bash
-git clone --recurse-submodules <repo-url> tokenflow && cd tokenflow
+git clone --recurse-submodules https://github.com/robiul-shagor/TokenFlow.git tokenflow && cd tokenflow
 pnpm install
 
 # Databases (local Postgres; uses your OS user by default)
@@ -104,7 +119,8 @@ network, and never import a real wallet into this setup.
 |---|---|
 | `pnpm chain` | Start Anvil |
 | `pnpm contracts:build` / `contracts:test` | `forge build` / `forge test` (unit, fuzz, invariant) |
-| `pnpm contracts:deploy` / `contracts:seed` | Local-only deploy and demo data (refuses any chain other than 31337) |
+| `pnpm contracts:deploy` / `contracts:seed` | Local deploy and demo data on Anvil |
+| `pnpm contracts:deploy:sepolia` / `:base-sepolia` | Testnet deploy with an encrypted keystore and Etherscan verification ([guide](docs/deployment.md)) |
 | `pnpm db:migrate` | Apply SQL migrations (`apps/web/drizzle/`) |
 | `pnpm indexer` | Run the indexer worker. Flags: `--once`, `--reset` |
 | `pnpm dev` / `pnpm build` | Next.js dev server / production build |
@@ -113,8 +129,9 @@ network, and never import a real wallet into this setup.
 
 ## Troubleshooting
 
-- **"Local setup incomplete"** in the UI: Anvil isn't running or contracts aren't deployed. Run `pnpm chain`, then
-  `pnpm contracts:deploy`.
+- **"Setup incomplete"** in the UI: Anvil isn't running or contracts aren't deployed. Run `pnpm chain`, then
+  `pnpm contracts:deploy`. On a testnet, check `NETWORK`, `RPC_URL` and the manifest; `/api/health` names any
+  missing setting.
 - **Indexer: "chain was reset"** after restarting Anvil: the local chain starts from scratch, so redeploy and seed,
   then run `pnpm indexer --reset`.
 - **"Indexed data may be out of date"**: start `pnpm indexer`. Reports created while it is behind are marked stale.
@@ -123,7 +140,7 @@ network, and never import a real wallet into this setup.
 ## Repository layout
 
 ```text
-contracts/            Foundry project (src/, test/, script/, deployments/ – generated, git-ignored)
+contracts/            Foundry project (src/, test/, script/, deployments/<chainId>.json; the local one is git-ignored)
 apps/web/             Next.js app: UI, API routes, indexer (src/indexer, scripts/indexer.ts), Drizzle schema + migrations
 sample-data/          Example reconciliation CSVs
 docs/                 architecture, threat model, testing report, ADRs, case study, requirements
@@ -132,13 +149,15 @@ docs/                 architecture, threat model, testing report, ADRs, case stu
 
 ## Documentation
 
-- [Architecture](docs/architecture.md) · [Threat model](docs/threat-model.md) · [Testing report](docs/testing.md)
+- [Architecture](docs/architecture.md) · [Threat model](docs/threat-model.md) · [Testing report](docs/testing.md) ·
+  [Deploying to a testnet](docs/deployment.md)
 - [Requirements](docs/requirements.md) · [Case study](docs/case-study.md)
 - Decisions: [vesting contract](docs/decisions/0001-vesting-contract.md) ·
   [ORM](docs/decisions/0002-orm-and-database.md) · [dev wallet](docs/decisions/0003-local-dev-wallet.md) ·
-  [indexer](docs/decisions/0004-indexer.md) · [reconciliation](docs/decisions/0005-csv-reconciliation.md)
+  [indexer](docs/decisions/0004-indexer.md) · [reconciliation](docs/decisions/0005-csv-reconciliation.md) ·
+  [network profiles](docs/decisions/0006-network-profiles.md)
 
 ## Disclaimer
 
 A self-directed portfolio prototype. No independent audit or formal verification has been performed. Test tokens
-have no value. Do not deploy to a public network or use with real funds.
+have no value. Deploy only to the supported testnets, and never use it with real funds.

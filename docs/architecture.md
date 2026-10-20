@@ -1,7 +1,9 @@
 # Architecture
 
-TokenFlow is a local-only portfolio prototype. Everything runs on one machine: Anvil (chain `31337`), PostgreSQL,
-a Next.js app and an indexer worker.
+TokenFlow is a portfolio prototype with three parts: a Next.js app, an indexer worker and PostgreSQL. It runs
+against one network profile (`NETWORK`). By default that is a local Anvil chain (`31337`); the same build can run on
+Sepolia or Base Sepolia (see [deployment.md](deployment.md) and [ADR 0006](decisions/0006-network-profiles.md)).
+Mainnets are refused.
 
 ```text
 Browser (Next.js client components)
@@ -24,7 +26,7 @@ Browser (Next.js client components)
 |---|---|---|
 | `VestingRegistry` | `contracts/src/VestingRegistry.sol` | Source of truth: schedules, funding, vesting maths, claims, access control |
 | `MockERC20` | `contracts/src/mocks/MockERC20.sol` | Freely mintable test token (no monetary value) |
-| Deploy/seed scripts | `contracts/script/` | Local-only (refuse any chain ≠ 31337); write `contracts/deployments/31337.json` |
+| Deploy/seed scripts | `contracts/script/` | Deploy runs on 31337, Sepolia or Base Sepolia only and writes `contracts/deployments/<chainId>.json`; seed is local-only |
 | Web UI | `apps/web/src/app/` | Dashboard, create allocation, recipient claims, reconciliation |
 | Server config | `apps/web/src/server/config.ts` | Loads and validates the manifest; fails closed on unsupported chains |
 | Indexer | `apps/web/src/indexer/`, `scripts/indexer.ts` | Idempotent event ingestion into Postgres |
@@ -40,10 +42,12 @@ Browser (Next.js client components)
 4. **Integer token units everywhere.** Solidity `uint256`, TypeScript `bigint`, Postgres `NUMERIC(78,0)`. Values are
    formatted only at render time (`formatTokenAmount`).
 5. **CSV input is untrusted.** See [ADR 0005](decisions/0005-csv-reconciliation.md).
-6. **No private keys anywhere.** Scripts and the dev connector use Anvil's unlocked accounts
-   ([ADR 0003](decisions/0003-local-dev-wallet.md)).
-7. **Local config is separate.** The manifest is generated and git-ignored, and `.env.example` holds only local
-   non-secret defaults.
+6. **No plaintext private keys anywhere.** Locally, scripts and the dev connector use Anvil's unlocked accounts
+   ([ADR 0003](decisions/0003-local-dev-wallet.md)); testnet deploys use an encrypted Foundry keystore or a Ledger.
+7. **Config is separate from code.** The local manifest is generated and git-ignored, `.env.example` holds only
+   non-secret defaults, and the server RPC URL (which may hold an API key) never reaches the browser.
+8. **Fail closed per network.** The manifest, the RPC and the wallet must all be on the profile's chain; mainnet
+   chain IDs are always refused. Public networks add a confirmation depth, signed report saves and rate limits.
 
 ## Sequence: issuer creates an allocation
 
@@ -118,11 +122,11 @@ See `apps/web/src/db/schema.ts` and the migration `apps/web/drizzle/0000_init.sq
 
 | Method | Path | Notes |
 |---|---|---|
-| GET | `/api/health` | Status of manifest, DB, RPC and indexer (503 if a dependency is down) |
+| GET | `/api/health` | Network, manifest, DB, RPC and indexer status (503 if a dependency is down or a setting is missing; names settings, never values) |
 | GET | `/api/allocations[?beneficiary=0x…]` | Indexed allocations plus indexing metadata |
-| GET | `/api/activity?limit=&before=` | Paginated indexed events, newest first |
-| POST | `/api/reconciliation/validate` | `text/csv` body, max 1 MB. Returns file and row errors without saving |
-| POST | `/api/reconciliation` | JSON `{csv, filename?, chainId, contractAddress}`. Both must match the configured deployment |
+| GET | `/api/activity?limit=&before=[&beneficiary=0x…]` | Paginated indexed events, newest first |
+| POST | `/api/reconciliation/validate` | `text/csv` body, max 1 MB. Returns file and row errors without saving. Testnets: 30 requests/min per IP |
+| POST | `/api/reconciliation` | JSON `{csv, filename?, chainId, contractAddress, auth?}`. Chain and contract must match the configured deployment. Testnets: `auth = {address, signature, issuedAt}` from a `SCHEDULE_MANAGER_ROLE` holder is required, and 10 requests/min per IP |
 | GET | `/api/reconciliation[?limit=]` | Recent report summaries |
 | GET | `/api/reconciliation/:id` | Full saved report |
 | GET | `/api/reconciliation/:id/export` | CSV export |

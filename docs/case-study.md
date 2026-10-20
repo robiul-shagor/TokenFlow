@@ -1,7 +1,7 @@
 # Case study: TokenFlow
 
-> **Self-directed portfolio project.** A local-only prototype on an Anvil development chain with test tokens that
-> have no monetary value. Not audited, not production software, not client work.
+> **Self-directed portfolio project.** A prototype that runs on a local Anvil chain or a public testnet (Sepolia,
+> Base Sepolia), with test tokens that have no monetary value. Not audited, not production software, not client work.
 
 ## 1. Overview
 
@@ -19,7 +19,8 @@ answer "does the chain match our cap table, as of which block?"
 ## 3. Role and scope
 
 I designed and built everything (contracts, indexer, API, UI, tests, CI, docs) as a solo portfolio project. Scope is
-deliberately local-only: no mainnet, no real funds, no authentication.
+deliberately limited to local and test networks: no mainnet and no real funds. On public networks, writes are
+authorised by on-chain roles rather than accounts and passwords.
 
 ## 4. User journeys
 
@@ -90,24 +91,28 @@ The report header stated chain 31337, the registry address, and indexed block 10
 
 ## 10. Security and limitations
 
-See [threat-model.md](threat-model.md). In short: local chain only, single EOA admin, no reorg handling, no API
-authentication, no revocation, one token per registry, not audited.
+See [threat-model.md](threat-model.md). In short: local Anvil or public testnets only (mainnets refused), single EOA
+admin, reorgs handled by a confirmation depth (deeper ones stop the indexer for a manual reset), report saving
+authorised by an on-chain role signature on public networks, no revocation, one token per registry, not audited.
 
 ## 11. Results (verifiable)
 
 - Issuer → beneficiary → claim → index → reconcile works end to end on a fresh Anvil, as shown in the screenshots
   above and the integration test.
-- 24/24 contract tests and 83/83 web tests pass. `VestingRegistry` has 100% line and branch coverage.
+- 27/27 contract tests and 111/111 web tests pass. `VestingRegistry` has 100% line and branch coverage.
+- The testnet profile was exercised against a simulated Sepolia chain (deploy, indexer with confirmations, signed
+  report saves, rate limits); see [testing.md](testing.md). A real Sepolia deployment is the next step.
 - Lint, typecheck and production build are clean.
 
 No user counts, client impact or performance claims are made.
 
 ## 12. Future work
 
-Public testnet mode with confirmation depth and reorg rollback, multisig admin (Safe), authentication, multi-token
-and multi-chain support, a committed Playwright suite, and an independent security review.
+A live Sepolia deployment, automatic reorg rollback (instead of stop-and-reset), multisig admin (Safe), storing the
+signer of each report, a strict Content-Security-Policy, multi-token support, a committed Playwright suite, and an
+independent security review.
 
 ## 13. Links
 
 - Repository: _add after publishing_
-- Demo video (2–3 min): _to be recorded. Keep the "LOCAL DEVELOPMENT ONLY" banner visible._
+- Demo video (2–3 min): _to be recorded. Keep the "LOCAL DEVELOPMENT ONLY" / "TESTNET DEMO" banner visible._

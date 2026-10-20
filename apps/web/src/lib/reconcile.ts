@@ -194,7 +194,7 @@ function csvCell(value: string): string {
 export function reportToCsv(report: ReconciliationReport): string {
   const m = report.meta;
   const lines = [
-    `# TokenFlow reconciliation report — LOCAL DEVELOPMENT ONLY`,
+    `# TokenFlow reconciliation report — test tokens only, not audited`,
     `# chain_id=${m.chainId}`,
     `# contract=${m.contractAddress}`,
     `# token=${m.tokenAddress} decimals=${m.tokenDecimals}`,

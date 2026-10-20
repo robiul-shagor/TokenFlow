@@ -1,6 +1,8 @@
 // Hand-maintained ABI subset for contracts/src/VestingRegistry.sol and the ERC-20 calls the app needs.
 // `abi.test.ts` checks these against the Foundry build artifact when it is present.
 
+import { keccak256, toBytes } from "viem";
+
 export const vestingRegistryAbi = [
   {
     type: "function",
@@ -180,3 +182,6 @@ export const erc20Abi = [
     outputs: [{ name: "", type: "string" }],
   },
 ] as const;
+
+// Mirrors `keccak256("SCHEDULE_MANAGER_ROLE")` in VestingRegistry.sol.
+export const SCHEDULE_MANAGER_ROLE = keccak256(toBytes("SCHEDULE_MANAGER_ROLE"));

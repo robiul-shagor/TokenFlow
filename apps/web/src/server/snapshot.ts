@@ -6,7 +6,7 @@ import { computeIndexerStatus, type IndexerStatus } from "@/indexer/health";
 import { getCursor } from "@/indexer/indexer";
 import type { Db } from "@/db/client";
 import { allocations } from "@/db/schema";
-import { getPublicClient, getTokenDecimals, loadDeployment, type Deployment } from "./config";
+import { confirmations, getPublicClient, getSafeHeadBlock, getTokenDecimals, loadDeployment, type Deployment } from "./config";
 
 export interface IndexingMeta {
   chainId: number;
@@ -15,14 +15,16 @@ export interface IndexingMeta {
   tokenDecimals: number | null;
   tokenSymbol: string | null;
   indexedBlock: string | null;
+  /** Confirmed head: latest block minus `confirmations`. */
   headBlock: string | null;
+  confirmations: number;
   indexer: Omit<IndexerStatus, "lagBlocks"> & { lagBlocks: string | null };
   lastRunAt: string | null;
 }
 
 async function headBlockOrNull(): Promise<bigint | null> {
   try {
-    return await getPublicClient().getBlockNumber();
+    return await getSafeHeadBlock();
   } catch {
     return null;
   }
@@ -59,6 +61,7 @@ export async function getIndexingMeta(db: Db, d: Deployment = loadDeployment()):
     tokenSymbol: token.symbol,
     indexedBlock: cursor?.lastProcessedBlock.toString() ?? null,
     headBlock: head?.toString() ?? null,
+    confirmations: Number(confirmations()),
     indexer: { ...status, lagBlocks: status.lagBlocks?.toString() ?? null },
     lastRunAt: cursor?.lastRunAt.toISOString() ?? null,
   };

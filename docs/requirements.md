@@ -1,6 +1,7 @@
 # Requirements and acceptance criteria
 
-Derived from the original project plan. All of it is local-only (Anvil chain 31337, test tokens).
+Derived from the original project plan. Local Anvil (31337) is the default; Sepolia and Base Sepolia are supported
+through network profiles ([ADR 0006](decisions/0006-network-profiles.md)). Test tokens only; no mainnet.
 
 ## User stories
 

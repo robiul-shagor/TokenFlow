@@ -22,6 +22,8 @@ failure leaves no partial state, and a replay is a no-op.
 ## Consequences
 
 - The indexer is safe to restart or replay at any time (covered by integration tests).
-- It has no confirmation depth or automatic reorg handling. That's fine on Anvil, but a public testnet would need a
-  confirmation depth and reorg rollback, which is listed as future work.
+- Reorgs are handled by a **confirmation depth** (`INDEXER_CONFIRMATIONS`, default 0 on Anvil and 3 on testnets;
+  [ADR 0006](0006-network-profiles.md)): the indexer only reads up to `latest − confirmations`. A reorg deeper than
+  that is caught by the block-hash cursor check and stops the indexer until `--reset`. Automatic rollback is
+  future work.
 - The database is a read model. Claimable amounts in the UI always come from the contract's `releasable` view.

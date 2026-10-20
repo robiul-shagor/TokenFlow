@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import { explorerLink } from "@/lib/chain";
+import { useNetwork } from "./Providers";
 
 export function Card({ title, actions, children }: { title?: ReactNode; actions?: ReactNode; children: ReactNode }) {
   return (
@@ -52,12 +54,23 @@ export function shorten(value: string, chars = 6): string {
   return value.length <= chars * 2 + 2 ? value : `${value.slice(0, chars + 2)}…${value.slice(-chars)}`;
 }
 
-/** Shows a shortened hex value (address / tx hash) with a copy button. No block explorer exists locally. */
-export function Hex({ value, chars = 6 }: { value: string; chars?: number }) {
+/**
+ * Shows a shortened hex value (address / tx hash) with a copy button. With `kind`, it links to the
+ * network's block explorer when there is one (testnets); locally there is none.
+ */
+export function Hex({ value, chars = 6, kind }: { value: string; chars?: number; kind?: "tx" | "address" }) {
   const [copied, setCopied] = useState(false);
+  const { explorerUrl } = useNetwork();
+  const href = kind ? explorerLink(explorerUrl, kind, value) : null;
   return (
     <span className="inline-flex items-center gap-1 whitespace-nowrap font-mono text-xs" title={value}>
-      {shorten(value, chars)}
+      {href ? (
+        <a className="underline decoration-dotted underline-offset-2" href={href} target="_blank" rel="noopener noreferrer">
+          {shorten(value, chars)}
+        </a>
+      ) : (
+        shorten(value, chars)
+      )}
       <button
         type="button"
         className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"

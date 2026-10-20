@@ -5,7 +5,7 @@ import { useBlock, useConnection } from "wagmi";
 import { sumReads, useReleasable, useVested } from "@/components/AllocationsTable";
 import { ClaimButton } from "@/components/ClaimButton";
 import { StaleIndexWarning } from "@/components/IndexingStatus";
-import { useAppConfig } from "@/components/Providers";
+import { useAppConfig, useNetwork } from "@/components/Providers";
 import { Hex, Notice } from "@/components/ui";
 import { RequireLocalWallet } from "@/components/WalletPanel";
 import { useActivity, useAllocations, type IndexedAllocationDto } from "@/hooks/useIndexedData";
@@ -39,6 +39,7 @@ interface Row {
 function RecipientView() {
   const { address } = useConnection();
   const { registry } = useAppConfig();
+  const network = useNetwork();
   const { data, error, isLoading } = useAllocations(address);
   const allocations = useMemo(() => data?.allocations ?? [], [data]);
   const releasable = useReleasable(allocations);
@@ -62,7 +63,7 @@ function RecipientView() {
           <h2 className="text-lg font-semibold">No allocations pay this wallet</h2>
           <p className={`mx-auto mt-2 max-w-lg text-sm ${muted}`}>
             Nothing indexed for <span className="font-mono">{address}</span> as of block {data.meta.indexedBlock ?? "—"}.
-            After running the seed script, try Anvil #1 or #2.
+            {network.kind === "local" ? "After running the seed script, try Anvil #1 or #2." : ""}
           </p>
         </section>
       </>
@@ -366,7 +367,7 @@ function ClaimHistory({ address, decimals, symbol }: { address: string; decimals
                   {formatTokenAmount(e.payload.amount, decimals)} {symbol}
                 </span>
                 <span className={`font-mono ${muted}`}>block {e.blockNumber}</span>
-                <Hex value={e.transactionHash} chars={4} />
+                <Hex value={e.transactionHash} chars={4} kind="tx" />
               </div>
             ))}
           </div>

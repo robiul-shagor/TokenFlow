@@ -5,14 +5,17 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from "re
 import type { Address } from "viem";
 import { createConfig, http, WagmiProvider, type CreateConnectorFn } from "wagmi";
 import { injected, mock } from "wagmi/connectors";
-import { LOCAL_CHAIN } from "@/lib/chain";
+import { getNetwork, NETWORKS, type NetworkName } from "@/lib/chain";
 
 export interface AppConfig {
+  network: NetworkName;
   chainId: number;
   rpcUrl: string;
   registry: Address;
   token: Address;
   admin: Address;
+  /** Public networks require a schedule manager's signature to save reconciliation reports. */
+  reportSignatureRequired: boolean;
 }
 
 /** Anvil's well-known default accounts #0-#2. Public, disposable, LOCAL DEVELOPMENT ONLY. */
@@ -80,22 +83,28 @@ export function useAppConfig(): AppConfig {
   return value;
 }
 
+/** The active network profile; falls back to the local profile outside <Providers> (component tests). */
+export function useNetwork() {
+  const value = useContext(AppConfigContext);
+  return value ? getNetwork(value.network) : NETWORKS.local;
+}
+
 function WagmiShell({ appConfig, children }: { appConfig: AppConfig; children: ReactNode }) {
-  const wagmiConfig = useMemo(
-    () =>
-      createConfig({
-        chains: [LOCAL_CHAIN],
-        connectors: [
-          injected(),
-          ...DEV_ACCOUNTS.map((a, i) => anvilDevAccount(a.address, a.label, i)),
-        ],
-        transports: { [LOCAL_CHAIN.id]: http(appConfig.rpcUrl) },
-        ssr: true,
-        // Anvil mines instantly; poll receipts/blocks faster than the 4s default.
-        pollingInterval: 1_000,
-      }),
-    [appConfig.rpcUrl],
-  );
+  const wagmiConfig = useMemo(() => {
+    const profile = getNetwork(appConfig.network);
+    const local = profile.kind === "local";
+    return createConfig({
+      chains: [profile.chain],
+      // Anvil dev accounts only exist on the local chain; public networks use the visitor's own wallet.
+      connectors: local
+        ? [injected(), ...DEV_ACCOUNTS.map((a, i) => anvilDevAccount(a.address, a.label, i))]
+        : [injected()],
+      transports: { [profile.chain.id]: http(appConfig.rpcUrl) },
+      ssr: true,
+      // Anvil mines instantly; poll receipts/blocks faster than the 4s default. Public chains: 4s.
+      pollingInterval: local ? 1_000 : 4_000,
+    });
+  }, [appConfig.network, appConfig.rpcUrl]);
   return (
     <WagmiProvider config={wagmiConfig} reconnectOnMount>
       <AppConfigContext.Provider value={appConfig}>{children}</AppConfigContext.Provider>
@@ -103,7 +112,7 @@ function WagmiShell({ appConfig, children }: { appConfig: AppConfig; children: R
   );
 }
 
-/** `appConfig` is loaded on the server from the local deployment manifest (see ConfiguredApp). */
+/** `appConfig` is loaded on the server from the deployment manifest for the active network (see ConfiguredApp). */
 export function Providers({ appConfig, children }: { appConfig: AppConfig; children: ReactNode }) {
   const [queryClient] = useState(() => new QueryClient({ defaultOptions: { queries: { refetchOnWindowFocus: false } } }));
   return (

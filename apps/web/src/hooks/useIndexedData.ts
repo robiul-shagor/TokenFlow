@@ -10,6 +10,7 @@ export interface IndexingMeta {
   tokenSymbol: string | null;
   indexedBlock: string | null;
   headBlock: string | null;
+  confirmations: number;
   indexer: { state: string; stale: boolean; message: string; lagBlocks: string | null };
   lastRunAt: string | null;
 }

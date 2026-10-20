@@ -65,7 +65,7 @@ export function ActivityFeed({
                 {amount ? `${formatTokenAmount(amount, decimals)} ${symbol}` : "—"}
               </span>
               <span className="font-mono text-[13px] text-slate-600 dark:text-slate-400">{e.blockNumber}</span>
-              <Hex value={e.transactionHash} chars={4} />
+              <Hex value={e.transactionHash} chars={4} kind="tx" />
             </div>
           );
         })}

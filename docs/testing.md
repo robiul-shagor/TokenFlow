@@ -16,7 +16,7 @@ Integration tests start their own Anvil on port 8546 and use `TEST_DATABASE_URL`
 (default `postgres://localhost:5432/tokenflow_test`). They are skipped if Anvil or `contracts/out` is missing,
 except in CI, where `REQUIRE_INTEGRATION=1` turns a skip into a failure.
 
-## Contracts: 24 tests, all passing
+## Contracts: 27 tests, all passing
 
 ```
 Suite result: ok. 23 passed; 0 failed; 0 skipped     (VestingRegistryTest: 21 unit + 2 fuzz)
@@ -45,7 +45,7 @@ cliff / midpoint / just before end / end / far future, rounding down, repeated c
 beneficiary-only release, isolation between multiple schedules and beneficiaries, and the fuzzed and invariant
 properties above.
 
-## Web: 83 tests in 14 files, all passing
+## Web: 111 tests in 19 files, all passing
 
 | Area | File | What it proves |
 |---|---|---|
@@ -89,6 +89,24 @@ Done with Playwright against `pnpm dev`. Screenshots are in [images/](images/):
    Approve (not needed) → Create (confirmed, block 12) → Indexed.
 6. Overview, Create allocation, My allocations and the report were checked at 1440px and 390px with no console
    errors.
+
+## Network profiles and public-network safety
+
+| Area | File | What it proves |
+|---|---|---|
+| Deploy chain guard | `contracts/test/Deploy.t.sol` | The deploy script accepts only 31337 / 11155111 / 84532 and reverts on mainnet |
+| Profiles | `lib/chain.test.ts` | Unknown names throw; no profile is on a mainnet chain; confirmations only on testnets; explorer links |
+| Server config | `server/config.test.ts` | Manifest must match the profile's chain (mainnet refused); `RPC_URL` required on testnets and never handed to the browser; env validation never echoes values; confirmed head = latest − depth |
+| Report signatures | `server/reportAuth.test.ts` | Accepts a fresh role-holder signature once; rejects missing, expired, replayed, wrong-file, wrong-chain and non-role signatures |
+| Rate limiting | `server/rateLimit.test.ts` | Fixed window per key; retry-after; first `X-Forwarded-For` hop |
+| Integration (Anvil) | `test/integration/flow.test.ts` | The indexer stops at `head − confirmations`; signature + `hasRole` checked against the real contract |
+
+**Simulated testnet run.** An Anvil node started with Sepolia's chain ID (11155111) stood in for Sepolia, with the
+production build run as `NETWORK=sepolia`. The deploy script, migrations, the indexer (3 confirmations) and
+`/api/health` all worked. Security headers were present, the banner read "TESTNET DEMO", and only a browser wallet
+was offered. Over HTTP: no signature → 401, non-manager → 403, schedule manager → 201, replayed signature → 401,
+the 11th request from one IP in a minute → 429. The simulated manifest and database were deleted afterwards. A real
+Sepolia deployment has not been made yet.
 
 ## Known gaps
 

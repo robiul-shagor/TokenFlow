@@ -6,6 +6,8 @@
     "contracts:build": "cd contracts && forge build",
     "contracts:test": "cd contracts && forge test",
     "contracts:deploy": "cd contracts && forge script script/Deploy.s.sol --rpc-url http://127.0.0.1:8545 --unlocked --sender 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 --broadcast",
+    "contracts:deploy:sepolia": "cd contracts && forge script script/Deploy.s.sol --rpc-url sepolia --account ${DEPLOYER_ACCOUNT:-tokenflow-deployer} --broadcast --verify",
+    "contracts:deploy:base-sepolia": "cd contracts && forge script script/Deploy.s.sol --rpc-url base-sepolia --account ${DEPLOYER_ACCOUNT:-tokenflow-deployer} --broadcast --verify",
     "contracts:seed": "cd contracts && forge script script/Seed.s.sol --rpc-url http://127.0.0.1:8545 --unlocked --sender 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 --broadcast",
     "dev": "pnpm --filter web dev",
     "db:migrate": "pnpm --filter web db:migrate",

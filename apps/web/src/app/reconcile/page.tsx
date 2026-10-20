@@ -4,9 +4,13 @@ import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { useConnection, useSignMessage } from "wagmi";
 import { useAppConfig } from "@/components/Providers";
 import { Badge, Card, EmptyState, Notice } from "@/components/ui";
 import { CSV_COLUMNS, MAX_CSV_BYTES } from "@/lib/csv";
+import { classifyTxError } from "@/lib/txState";
+import { buildReportAuthMessage, sha256Hex, type ReportAuth } from "@/lib/reportAuth";
+import { useMounted } from "@/hooks/useMounted";
 
 interface ValidationResult {
   fileErrors: string[];
@@ -16,11 +20,15 @@ interface ValidationResult {
 }
 
 export default function ReconcilePage() {
-  const { chainId, registry } = useAppConfig();
+  const { chainId, registry, reportSignatureRequired } = useAppConfig();
+  const { address, status } = useConnection();
+  const signMessage = useSignMessage();
+  const mounted = useMounted();
+  const canSign = mounted && status === "connected" && !!address;
   const router = useRouter();
   const [file, setFile] = useState<{ name: string; text: string } | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
-  const [busy, setBusy] = useState<"validating" | "running" | null>(null);
+  const [busy, setBusy] = useState<"validating" | "signing" | "running" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const reports = useQuery({
@@ -60,13 +68,27 @@ export default function ReconcilePage() {
 
   async function run() {
     if (!file) return;
-    setBusy("running");
     setError(null);
     try {
+      // Public networks: prove the caller holds SCHEDULE_MANAGER_ROLE by signing the file's hash.
+      let auth: ReportAuth | undefined;
+      if (reportSignatureRequired) {
+        if (!address) throw new Error("Connect a schedule manager wallet to save reports");
+        setBusy("signing");
+        const issuedAt = new Date().toISOString();
+        const message = buildReportAuthMessage({ chainId, registry, csvSha256: await sha256Hex(file.text), issuedAt });
+        try {
+          auth = { address, issuedAt, signature: await signMessage.mutateAsync({ message }) };
+        } catch (err) {
+          const c = classifyTxError(err);
+          throw new Error(c.kind === "rejected" ? "Signature request was rejected; nothing was saved." : c.message);
+        }
+      }
+      setBusy("running");
       const res = await fetch("/api/reconciliation", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ csv: file.text, filename: file.name, chainId, contractAddress: registry }),
+        body: JSON.stringify({ csv: file.text, filename: file.name, chainId, contractAddress: registry, auth }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error([body.error, ...(body.details?.fileErrors ?? [])].join(": "));
@@ -127,8 +149,26 @@ export default function ReconcilePage() {
                       ))}
                     </ul>
                   )}
-                  <button className="btn-primary" onClick={run} disabled={busy !== null}>
-                    {busy === "running" ? "Reconciling…" : "3. Run reconciliation"}
+                  {reportSignatureRequired && (
+                    <p className="text-xs text-slate-600 dark:text-slate-400">
+                      Saving a report on this network needs a signature from an account with SCHEDULE_MANAGER_ROLE.
+                      Signing is free and sends no transaction.
+                    </p>
+                  )}
+                  <button
+                    className="btn-primary"
+                    onClick={run}
+                    disabled={busy !== null || (reportSignatureRequired && !canSign)}
+                  >
+                    {busy === "signing"
+                      ? "Confirm the signature in your wallet…"
+                      : busy === "running"
+                        ? "Reconciling…"
+                        : reportSignatureRequired
+                          ? canSign
+                            ? "3. Sign and run reconciliation"
+                            : "Connect a wallet to run reconciliation"
+                          : "3. Run reconciliation"}
                   </button>
                 </>
               )}
@@ -140,7 +180,7 @@ export default function ReconcilePage() {
           <ul className="space-y-2 text-sm">
             <li>
               <a className="underline" download href="/api/reconciliation/sample?variant=example">allocations.example.csv</a>
-              <p className="text-xs text-slate-500">Matches the seeded demo schedules.</p>
+              <p className="text-xs text-slate-500">Matches the local seeded demo schedules.</p>
             </li>
             <li>
               <a className="underline" download href="/api/reconciliation/sample?variant=issues">allocations.with-issues.csv</a>

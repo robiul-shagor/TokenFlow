@@ -1,2 +1,2 @@
-*.json
-!.gitignore
+# Local Anvil manifests change on every restart; public testnet manifests may be committed.
+31337.json

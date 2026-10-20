@@ -1,7 +1,7 @@
 "use client";
 
 import { useConnection, useConnect, useConnectors, useDisconnect, useSwitchChain } from "wagmi";
-import { isSupportedChain, LOCAL_CHAIN_ID } from "@/lib/chain";
+import { useNetwork } from "./Providers";
 import { useMounted } from "@/hooks/useMounted";
 import { Badge, Hex } from "./ui";
 
@@ -11,16 +11,18 @@ export function WalletPanel() {
   const connect = useConnect();
   const disconnect = useDisconnect();
   const mounted = useMounted();
+  const network = useNetwork();
+  const onNetwork = chainId === network.chain.id;
 
   if (!mounted) return <span className="text-xs text-slate-500">Wallet…</span>;
   if (status === "connected" && address) {
     return (
       <div className="flex flex-wrap items-center gap-2 text-sm">
-        <Badge tone={isSupportedChain(chainId) ? "good" : "bad"}>
-          {isSupportedChain(chainId) ? `Anvil · ${chainId}` : `Unsupported chain ${chainId}`}
+        <Badge tone={onNetwork ? "good" : "bad"}>
+          {onNetwork ? `${network.chain.name} · ${chainId}` : `Unsupported chain ${chainId}`}
         </Badge>
         <span className="text-xs text-slate-500">{connector?.name}</span>
-        <Hex value={address} chars={4} />
+        <Hex value={address} chars={4} kind="address" />
         <button className="btn-secondary" onClick={() => disconnect.mutate()}>
           Disconnect
         </button>
@@ -40,7 +42,7 @@ export function WalletPanel() {
         disabled={status === "connecting" || connect.isPending}
         onChange={(e) => {
           const c = connectors.find((x) => x.id === e.target.value);
-          if (c) connect.mutate({ connector: c, chainId: LOCAL_CHAIN_ID });
+          if (c) connect.mutate({ connector: c, chainId: network.chain.id });
           e.target.value = "";
         }}
       >
@@ -49,7 +51,7 @@ export function WalletPanel() {
         </option>
         {connectors.map((c) => (
           <option key={c.uid} value={c.id}>
-            {c.id === "injected" ? "Browser wallet (local RPC)" : c.name}
+            {c.id === "injected" ? (network.kind === "local" ? "Browser wallet (local RPC)" : "Browser wallet") : c.name}
           </option>
         ))}
       </select>
@@ -63,6 +65,8 @@ export function RequireLocalWallet({ children, purpose }: { children: React.Reac
   const { status, chainId } = useConnection();
   const switchChain = useSwitchChain();
   const mounted = useMounted();
+  const network = useNetwork();
+  const target = network.chain.id;
 
   if (!mounted || status === "connecting" || status === "reconnecting") {
     return <p className="text-sm text-slate-500">Connecting wallet…</p>;
@@ -80,13 +84,15 @@ export function RequireLocalWallet({ children, purpose }: { children: React.Reac
         </svg>
         <h2 className="text-lg font-semibold">Connect a wallet to {purpose}</h2>
         <p className="max-w-lg text-sm text-slate-600 dark:text-slate-400">
-          Pick an Anvil dev account in the top bar, or point a browser wallet at http://127.0.0.1:8545 with a disposable
-          Anvil key in a development-only profile. Never import a real seed phrase.
+          {network.kind === "local"
+            ? "Pick an Anvil dev account in the top bar, or point a browser wallet at http://127.0.0.1:8545 with a disposable Anvil key in a development-only profile."
+            : `Connect a browser wallet on ${network.label}. Use a test-only account: TokenFlow tokens have no value and the contracts are not audited.`}{" "}
+          Never import a real seed phrase.
         </p>
       </section>
     );
   }
-  if (!isSupportedChain(chainId)) {
+  if (chainId !== target) {
     return (
       <div
         role="alert"
@@ -95,8 +101,8 @@ export function RequireLocalWallet({ children, purpose }: { children: React.Reac
       >
         <div className="min-w-0 flex-[1_1_420px]">
           <p>
-            <strong>Wrong network (chain {chainId}).</strong> TokenFlow only runs on the local Anvil chain (
-            {LOCAL_CHAIN_ID}). Balances and transactions stay hidden until you switch, so you never read figures from the
+            <strong>Wrong network (chain {chainId}).</strong> This TokenFlow deployment runs on {network.label} (
+            {target}). Balances and transactions stay hidden until you switch, so you never read figures from the
             wrong chain.
           </p>
           {switchChain.error && <p className="mt-2 text-xs">{switchChain.error.message.split("\n")[0]}</p>}
@@ -104,9 +110,9 @@ export function RequireLocalWallet({ children, purpose }: { children: React.Reac
         <button
           className="inline-flex min-h-11 items-center rounded-lg border border-red-800 bg-white px-4 font-semibold text-red-900 disabled:opacity-50 dark:bg-transparent dark:text-red-200"
           disabled={switchChain.isPending}
-          onClick={() => switchChain.mutate({ chainId: LOCAL_CHAIN_ID })}
+          onClick={() => switchChain.mutate({ chainId: target })}
         >
-          Switch to Anvil ({LOCAL_CHAIN_ID})
+          Switch to {network.chain.name} ({target})
         </button>
       </div>
     );

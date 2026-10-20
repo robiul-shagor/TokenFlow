@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { formatTokenAmount } from "@/lib/amounts";
+import { networkForChainId } from "@/lib/chain";
 import { STATUS_LABELS, type ReconciliationStatus } from "@/lib/reconcile";
 import type { SerializedReport } from "@/server/reports";
 import { Hex, shorten } from "./ui";
@@ -207,18 +208,20 @@ export function ReconciliationResult({ report }: { report: SerializedReport }) {
       >
         <div className="bg-[var(--surface)] px-4 py-3">
           <p className={label}>Chain</p>
-          <p className="mt-1 font-mono">{m.chainId} · Anvil (local)</p>
+          <p className="mt-1 font-mono">
+            {m.chainId} · {networkForChainId(m.chainId)?.label ?? "unknown network"}
+          </p>
         </div>
         <div className="bg-[var(--surface)] px-4 py-3">
           <p className={label}>Vesting registry</p>
           <p className="mt-1">
-            <Hex value={m.contractAddress} chars={4} />
+            <Hex value={m.contractAddress} chars={4} kind="address" />
           </p>
         </div>
         <div className="bg-[var(--surface)] px-4 py-3">
           <p className={label}>Token</p>
           <p className="mt-1 flex flex-wrap items-center gap-1">
-            <Hex value={m.tokenAddress} chars={4} />
+            <Hex value={m.tokenAddress} chars={4} kind="address" />
             <span className="font-mono text-xs">· {m.tokenDecimals} dec</span>
           </p>
         </div>
@@ -446,7 +449,7 @@ function RowDetail({ row, amount, reportId }: { row: Row; amount: (raw: string |
         })}
         {row.beneficiaryAddress && (
           <p className="px-2.5 pt-1 text-xs text-slate-500">
-            Full address: <Hex value={row.beneficiaryAddress} chars={10} />
+            Full address: <Hex value={row.beneficiaryAddress} chars={10} kind="address" />
           </p>
         )}
       </div>

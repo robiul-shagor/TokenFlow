@@ -1,7 +1,14 @@
 import "./env";
 import { createDb } from "../src/db/client";
 import { ChainMismatchError, indexToHead, recordIndexerError, resetIndex, withRetry } from "../src/indexer/indexer";
-import { assertLocalChain, getPublicClient, loadDeployment } from "../src/server/config";
+import {
+  assertConfiguredChain,
+  confirmations,
+  getPublicClient,
+  loadDeployment,
+  networkProfile,
+  validateEnv,
+} from "../src/server/config";
 
 async function main() {
 
@@ -10,14 +17,18 @@ async function main() {
   const reset = args.has("--reset");
   const intervalMs = Number(process.env.INDEXER_POLL_MS ?? 2_000);
 
-  const url = process.env.DATABASE_URL;
-  if (!url) throw new Error("DATABASE_URL is not set (copy apps/web/.env.example to apps/web/.env.local)");
+  const problems = validateEnv();
+  if (problems.length > 0) {
+    throw new Error(`Invalid configuration (see apps/web/.env.example):\n- ${problems.join("\n- ")}`);
+  }
 
+  const profile = networkProfile();
   const deployment = loadDeployment();
   const client = getPublicClient();
-  await assertLocalChain(client);
-  const { db, close } = createDb(url);
+  await assertConfiguredChain(client);
+  const { db, close } = createDb(process.env.DATABASE_URL!);
   const target = { chainId: deployment.chainId, registry: deployment.registry, deployBlock: deployment.deployBlock };
+  const depth = confirmations();
 
   if (reset) {
     await resetIndex(db, target);
@@ -28,10 +39,13 @@ async function main() {
   process.on("SIGINT", () => (stopping = true));
   process.on("SIGTERM", () => (stopping = true));
 
-  console.log(`[indexer] LOCAL DEVELOPMENT ONLY — indexing ${deployment.registry} (chain ${deployment.chainId})`);
+  console.log(
+    `[indexer] ${profile.label} (chain ${deployment.chainId}) — indexing ${deployment.registry}, ` +
+      `${depth} confirmation(s). Test tokens only; not audited.`,
+  );
   do {
     try {
-      const results = await withRetry(() => indexToHead({ ...target, db, client }), {
+      const results = await withRetry(() => indexToHead({ ...target, db, client, confirmations: depth }), {
         onRetry: (err, n) => console.warn(`[indexer] transient error, retry ${n}: ${(err as Error).message}`),
       });
       const inserted = results.reduce((s, r) => s + r.eventsInserted, 0);

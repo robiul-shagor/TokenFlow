@@ -4,22 +4,20 @@ import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
-import { formatUnits, keccak256, toBytes } from "viem";
+import { formatUnits } from "viem";
 import { useBlock, useConnection, useReadContracts } from "wagmi";
-import { useAppConfig } from "@/components/Providers";
+import { useAppConfig, useNetwork } from "@/components/Providers";
 import { Hex, Notice } from "@/components/ui";
 import { RequireLocalWallet } from "@/components/WalletPanel";
 import { useAllocations } from "@/hooks/useIndexedData";
 import { useTxFlow } from "@/hooks/useTxFlow";
-import { erc20Abi, vestingRegistryAbi } from "@/lib/abi";
+import { erc20Abi, SCHEDULE_MANAGER_ROLE, vestingRegistryAbi } from "@/lib/abi";
 import { encodeAllocationId } from "@/lib/allocationId";
 import { formatTokenAmount } from "@/lib/amounts";
 import { validateCreateForm, type CreateFormValues, type CreateScheduleArgs } from "@/lib/createForm";
 import { isTxBusy, type TxState } from "@/lib/txState";
 import { DAY_SECONDS, utcDate, vestedAt } from "@/lib/unlocks";
 
-// Mirrors `keccak256("SCHEDULE_MANAGER_ROLE")` in VestingRegistry.sol.
-const SCHEDULE_MANAGER_ROLE = keccak256(toBytes("SCHEDULE_MANAGER_ROLE"));
 
 const panel = "rounded-xl border border-[var(--border)] bg-[var(--surface)]";
 const muted = "text-slate-600 dark:text-slate-400";
@@ -30,6 +28,7 @@ function nowUtcInput(): string {
 }
 
 export default function CreateAllocationPage() {
+  const network = useNetwork();
   return (
     <div className="flex flex-col gap-5">
       <nav aria-label="Breadcrumb" className={`text-sm ${muted}`}>
@@ -41,8 +40,8 @@ export default function CreateAllocationPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Create allocation</h1>
         <p className={`mt-1 text-sm ${muted}`}>
-          Creates and funds one vesting schedule in the registry with local test tokens. Requires SCHEDULE_MANAGER_ROLE
-          (Anvil #0 after deployment).
+          Creates and funds one vesting schedule in the registry with test tokens. Requires SCHEDULE_MANAGER_ROLE
+          {network.kind === "local" ? " (Anvil #0 after deployment)." : " (granted to the deployer, or an admin-chosen account)."}
         </p>
       </div>
       <RequireLocalWallet purpose="create allocations">
@@ -58,6 +57,7 @@ type Field = keyof CreateFormValues;
 
 function CreateForm() {
   const { registry, token } = useAppConfig();
+  const network = useNetwork();
   const { address } = useConnection();
   const queryClient = useQueryClient();
   const params = useSearchParams();
@@ -204,7 +204,10 @@ function CreateForm() {
 
       {hasRole === false && (
         <Notice tone="warn" title="This account cannot create schedules">
-          The contract will reject the transaction. Connect Anvil #0 (the deployer/admin).
+          The contract will reject the transaction.{" "}
+          {network.kind === "local"
+            ? "Connect Anvil #0 (the deployer/admin)."
+            : "Connect an account that holds SCHEDULE_MANAGER_ROLE, or ask the registry admin to grant it."}
         </Notice>
       )}
 
@@ -377,7 +380,7 @@ type StepStatus = "todo" | "active" | "done" | "error";
 function approveStep(s: TxState, needed: boolean): { status: StepStatus; sub: React.ReactNode } {
   switch (s.status) {
     case "preparing":
-      return { status: "active", sub: "Simulating against the local chain…" };
+      return { status: "active", sub: "Simulating against the chain…" };
     case "awaiting_signature":
       return { status: "active", sub: "Waiting for your signature in the wallet…" };
     case "pending":
@@ -397,7 +400,7 @@ function approveStep(s: TxState, needed: boolean): { status: StepStatus; sub: Re
 function createStep(s: TxState): { status: StepStatus; sub: React.ReactNode } {
   switch (s.status) {
     case "preparing":
-      return { status: "active", sub: "Simulating against the local chain…" };
+      return { status: "active", sub: "Simulating against the chain…" };
     case "awaiting_signature":
       return { status: "active", sub: "Waiting for your signature in the wallet…" };
     case "pending":
@@ -420,7 +423,7 @@ function TxRef({ text, hash }: { text: string; hash: string | null }) {
       {hash && (
         <>
           {" · "}
-          <Hex value={hash} chars={4} />
+          <Hex value={hash} chars={4} kind="tx" />
         </>
       )}
     </span>
