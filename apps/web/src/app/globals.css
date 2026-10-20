@@ -1,0 +1,50 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --surface: #ffffff;
+  --border: #e2e8f0;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #020617;
+    --foreground: #e2e8f0;
+    --surface: #0f172a;
+    --border: #1e293b;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+@layer components {
+  .card {
+    @apply rounded-lg border p-4;
+    background: var(--surface);
+    border-color: var(--border);
+  }
+  .input {
+    @apply w-full rounded-md border px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-sky-500;
+    background: var(--surface);
+    border-color: var(--border);
+  }
+  .btn-primary {
+    @apply rounded-md bg-slate-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-300;
+  }
+  .btn-secondary {
+    @apply rounded-md border px-3 py-1.5 text-sm hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-slate-800;
+    border-color: var(--border);
+  }
+}

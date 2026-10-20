@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# CI never needs a funded wallet, private key, mainnet RPC or testnet faucet:
+# everything runs against a throwaway Anvil chain and a service Postgres.
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    name: Contracts (forge)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Format
+        run: forge fmt --check
+      - name: Lint
+        run: forge lint
+      - name: Build
+        run: forge build --sizes
+      - name: Test (unit, fuzz, invariant)
+        run: forge test -vvv
+
+  web:
+    name: Web (lint, typecheck, tests, build)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: tokenflow_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      # Throwaway credentials for the CI service container only.
+      TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/tokenflow_test
+      REQUIRE_INTEGRATION: "1"
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: recursive
+      - uses: foundry-rs/foundry-toolchain@v1
+      - name: Build contracts (artifacts for ABI + integration tests)
+        working-directory: contracts
+        run: forge build
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Tests (unit, component, Anvil + Postgres integration)
+        run: pnpm test
+      - name: Production build
+        run: pnpm build
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

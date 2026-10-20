@@ -1,0 +1,27 @@
+# dependencies
+node_modules/
+
+# env files: never commit secrets. Only .env.example is tracked.
+.env
+.env.*
+!.env.example
+
+# local-only deployment artifacts and chain broadcasts
+contracts/deployments/*.json
+contracts/broadcast/
+contracts/cache/
+contracts/out/
+
+# build / test output
+apps/web/.next/
+apps/web/next-env.d.ts
+coverage/
+*.tsbuildinfo
+
+# local tooling
+.playwright-mcp/
+.DS_Store
+*.log
+
+# Private planning notes (kept local)
+/tockenflow.md
